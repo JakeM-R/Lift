@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { Plus, Search } from 'lucide-react'
 import type { Exercise } from '@/lib/types'
 import { BODY_PARTS, CATEGORIES } from '@/lib/utils/muscles'
@@ -17,10 +17,16 @@ interface SetStat {
   is_pr: boolean
 }
 
-export function ExercisesClient({ userId }: { userId: string }) {
-  const [exercises, setExercises] = useState<Exercise[]>([])
-  const [sets, setSets] = useState<SetStat[]>([])
-  const [loading, setLoading] = useState(true)
+interface Props {
+  userId: string
+  initialExercises: Exercise[]
+  initialSets: SetStat[]
+}
+
+export function ExercisesClient({ userId, initialExercises, initialSets }: Props) {
+  const [exercises, setExercises] = useState<Exercise[]>(initialExercises)
+  const [sets, setSets] = useState<SetStat[]>(initialSets)
+  const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [bodyPartFilter, setBodyPartFilter] = useState('All')
   const [categoryFilter, setCategoryFilter] = useState('All')
@@ -28,17 +34,7 @@ export function ExercisesClient({ userId }: { userId: string }) {
   const [showCreate, setShowCreate] = useState(false)
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
 
-  useEffect(() => {
-    async function load() {
-      const res = await fetch('/api/exercises')
-      if (!res.ok) { setLoading(false); return }
-      const { exercises: exList, sets: setList } = await res.json()
-      setExercises(exList as Exercise[])
-      setSets(setList as SetStat[])
-      setLoading(false)
-    }
-    load()
-  }, [userId])
+  // Data is loaded server-side and passed as initial props
 
   const filtered = useMemo(() => {
     return exercises.filter((e) => {

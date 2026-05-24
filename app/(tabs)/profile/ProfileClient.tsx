@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Settings, Plus, X, BarChart2, Weight, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 import type { UserPreferences, BodyMeasurement, Exercise } from '@/lib/types'
@@ -43,15 +43,35 @@ interface SetStat {
   exercise?: { primary_muscle: string | null; secondary_muscles: string[] | null } | null
 }
 
-export function ProfileClient({ userId, email }: { userId: string; email: string }) {
-  const [preferences, setPreferences] = useState<UserPreferences | null>(null)
-  const [workoutCount, setWorkoutCount] = useState(0)
-  const [workouts, setWorkouts] = useState<Array<{ finished_at: string | null }>>([])
-  const [measurements, setMeasurements] = useState<BodyMeasurement[]>([])
-  const [sets, setSets] = useState<SetStat[]>([])
-  const [exercises, setExercises] = useState<Exercise[]>([])
-  const [loading, setLoading] = useState(true)
-  const [widgets, setWidgets] = useState<string[]>([])
+interface Props {
+  userId: string
+  email: string
+  initialPreferences: UserPreferences | null
+  initialWorkoutCount: number
+  initialWorkouts: Array<{ finished_at: string | null }>
+  initialMeasurements: BodyMeasurement[]
+  initialSets: SetStat[]
+  initialExercises: Exercise[]
+}
+
+export function ProfileClient({
+  userId,
+  email,
+  initialPreferences,
+  initialWorkoutCount,
+  initialWorkouts,
+  initialMeasurements,
+  initialSets,
+  initialExercises,
+}: Props) {
+  const [preferences, setPreferences] = useState<UserPreferences | null>(initialPreferences)
+  const [workoutCount] = useState(initialWorkoutCount)
+  const [workouts] = useState<Array<{ finished_at: string | null }>>(initialWorkouts)
+  const [measurements, setMeasurements] = useState<BodyMeasurement[]>(initialMeasurements)
+  const [sets] = useState<SetStat[]>(initialSets)
+  const [exercises] = useState<Exercise[]>(initialExercises)
+  const [loading] = useState(false)
+  const [widgets, setWidgets] = useState<string[]>(initialPreferences?.dashboard_widgets ?? [])
   const [showAddWidget, setShowAddWidget] = useState(false)
   const [showLogWeight, setShowLogWeight] = useState(false)
   const [weightDate, setWeightDate] = useState(new Date().toISOString().split('T')[0])
@@ -59,24 +79,6 @@ export function ProfileClient({ userId, email }: { userId: string; email: string
   const [showExercisePicker, setShowExercisePicker] = useState(false)
   const [showDisplayNameSheet, setShowDisplayNameSheet] = useState(false)
   const [displayNameInput, setDisplayNameInput] = useState('')
-
-  useEffect(() => {
-    async function load() {
-      const res = await fetch('/api/profile')
-      if (!res.ok) { setLoading(false); return }
-      const data = await res.json()
-      const prefs = data.preferences as UserPreferences | null
-      setPreferences(prefs)
-      setWidgets(prefs?.dashboard_widgets ?? [])
-      setWorkoutCount(data.workoutCount ?? 0)
-      setWorkouts(data.workouts ?? [])
-      setMeasurements(data.measurements ?? [])
-      setSets(data.sets ?? [])
-      setExercises(data.exercises ?? [])
-      setLoading(false)
-    }
-    load()
-  }, [userId])
 
   const displayName = preferences?.display_name ?? null
   const nameToShow = displayName
