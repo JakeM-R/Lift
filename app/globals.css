@@ -1,0 +1,131 @@
+@import "tailwindcss";
+
+/* ── THEME TOKENS ─────────────────────────────────────────── */
+
+[data-theme="strong"] {
+  --bg:             #000000;
+  --surface:        #1C1C1E;
+  --border:         #2C2C2E;
+  --text-primary:   #FFFFFF;
+  --text-secondary: #8E8E93;
+  --accent:         #0A84FF;
+  --pr:             rgba(10, 132, 255, 0.15);
+  --pr-text:        #0A84FF;
+  --success:        #30D158;
+  --danger:         #FF453A;
+  --font-heading:   'Inter', system-ui, sans-serif;
+  --font-body:      'Inter', system-ui, sans-serif;
+}
+
+[data-theme="ryokan"] {
+  --bg:             #F7F3EE;
+  --surface:        #FFFFFF;
+  --border:         #E0D8D0;
+  --text-primary:   #1A1512;
+  --text-secondary: #8A7A6E;
+  --accent:         #9B2335;
+  --pr:             rgba(155, 35, 53, 0.10);
+  --pr-text:        #9B2335;
+  --success:        #4A7C59;
+  --danger:         #C0392B;
+  --font-heading:   'IM Fell English', 'Palatino Linotype', serif;
+  --font-body:      'Inter', system-ui, sans-serif;
+}
+
+[data-theme="forge"] {
+  --bg:             #141008;
+  --surface:        #1E1710;
+  --border:         #2A2018;
+  --text-primary:   #F0E8D8;
+  --text-secondary: #8A7A68;
+  --accent:         #D4820A;
+  --pr:             rgba(212, 130, 10, 0.15);
+  --pr-text:        #D4820A;
+  --success:        #4A7C59;
+  --danger:         #C0392B;
+  --font-heading:   'Inter', system-ui, sans-serif;
+  --font-body:      'Inter', system-ui, sans-serif;
+}
+
+[data-theme="obsidian"] {
+  --bg:             #0A0A0C;
+  --surface:        #141418;
+  --border:         #1E1E24;
+  --text-primary:   #D0D4D8;
+  --text-secondary: #60606A;
+  --accent:         #A8B4BC;
+  --pr:             rgba(168, 180, 188, 0.12);
+  --pr-text:        #A8B4BC;
+  --success:        #3D6B4A;
+  --danger:         #8B2020;
+  --font-heading:   'Inter', system-ui, sans-serif;
+  --font-body:      'Inter', system-ui, sans-serif;
+}
+
+[data-theme="volt"] {
+  --bg:             #08060F;
+  --surface:        #110D1E;
+  --border:         #1E1830;
+  --text-primary:   #E8E0FF;
+  --text-secondary: #6A6080;
+  --accent:         #7C3AFF;
+  --pr:             rgba(124, 58, 255, 0.15);
+  --pr-text:        #7C3AFF;
+  --success:        #2D7A4A;
+  --danger:         #8B2020;
+  --font-heading:   'Inter', system-ui, sans-serif;
+  --font-body:      'Inter', system-ui, sans-serif;
+}
+
+/* ── DEFAULT (strong) fallback on <html> ──────────────────── */
+
+html {
+  --bg:             #000000;
+  --surface:        #1C1C1E;
+  --border:         #2C2C2E;
+  --text-primary:   #FFFFFF;
+  --text-secondary: #8E8E93;
+  --accent:         #0A84FF;
+  --pr:             rgba(10, 132, 255, 0.15);
+  --pr-text:        #0A84FF;
+  --success:        #30D158;
+  --danger:         #FF453A;
+  --font-heading:   'Inter', system-ui, sans-serif;
+  --font-body:      'Inter', system-ui, sans-serif;
+}
+
+/* ── BASE STYLES ──────────────────────────────────────────── */
+
+body {
+  background-color: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── UTILITIES ────────────────────────────────────────────── */
+
+.font-heading {
+  font-family: var(--font-heading);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.mb-safe {
+  margin-bottom: env(safe-area-inset-bottom);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
