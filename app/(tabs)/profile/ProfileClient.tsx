@@ -83,7 +83,12 @@ export function ProfileClient({ userId, email }: { userId: string; email: string
         supabase.from('exercises').select('*').eq('created_by', userId).order('name'),
       ])
 
-      const prefs = prefsRes.data as UserPreferences | null
+      let prefs = prefsRes.data as UserPreferences | null
+      if (!prefs) {
+        // Row missing — create it now so saves work immediately
+        await supabase.rpc('init_user_preferences', { p_user_id: userId })
+        prefs = null
+      }
       setPreferences(prefs)
       setWidgets(prefs?.dashboard_widgets ?? [])
       setWorkoutCount(workoutsRes.data?.length ?? 0)
@@ -117,8 +122,7 @@ export function ProfileClient({ userId, email }: { userId: string; email: string
     setWidgets(newWidgets)
     await supabase
       .from('user_preferences')
-      .update({ dashboard_widgets: newWidgets })
-      .eq('user_id', userId)
+      .upsert({ user_id: userId, dashboard_widgets: newWidgets })
   }
 
   async function logWeight() {
@@ -147,10 +151,11 @@ export function ProfileClient({ userId, email }: { userId: string; email: string
     if (!displayNameInput.trim()) return
     await supabase
       .from('user_preferences')
-      .update({ display_name: displayNameInput.trim() })
-      .eq('user_id', userId)
+      .upsert({ user_id: userId, display_name: displayNameInput.trim() })
     setPreferences((prev) =>
-      prev ? { ...prev, display_name: displayNameInput.trim() } : null
+      prev
+        ? { ...prev, display_name: displayNameInput.trim() }
+        : ({ user_id: userId, display_name: displayNameInput.trim() } as UserPreferences)
     )
     setShowDisplayNameSheet(false)
   }
@@ -342,7 +347,7 @@ export function ProfileClient({ userId, email }: { userId: string; email: string
         title="Choose Exercise"
         showClose
       >
-        <div className="divide-y divide-[var(--border)] overflow-y-auto" style={{ maxHeight: '60vh' }}>
+        <div className="divide-y divide-[var(--border)]">
           {exercises.map((ex) => (
             <button
               key={ex.id}
