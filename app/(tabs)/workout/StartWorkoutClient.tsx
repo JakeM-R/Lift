@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, MoreHorizontal, Pencil, Copy, Trash2, ChevronRight } from 'lucide-react'
+import { Plus, MoreHorizontal, Pencil, Copy, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { Template, Exercise } from '@/lib/types'
 import { EXAMPLE_TEMPLATES } from '@/lib/types'
@@ -12,19 +12,35 @@ import { TemplatePreviewSheet } from '@/components/workout/TemplatePreviewSheet'
 import { CreateTemplateSheet } from '@/components/workout/CreateTemplateSheet'
 import { formatWorkoutDate } from '@/lib/utils/format'
 
-interface Props {
-  userId: string
-  templates: Template[]
-  exercises: Exercise[]
-}
-
-export function StartWorkoutClient({ userId, templates: initialTemplates, exercises }: Props) {
+export function StartWorkoutClient({ userId }: { userId: string }) {
   const router = useRouter()
-  const [templates, setTemplates] = useState(initialTemplates)
+  const supabase = createClient()
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [exercises, setExercises] = useState<Exercise[]>([])
+  const [loading, setLoading] = useState(true)
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null)
   const [showCreateTemplate, setShowCreateTemplate] = useState(false)
   const [menuTemplate, setMenuTemplate] = useState<Template | null>(null)
-  const supabase = createClient()
+
+  useEffect(() => {
+    async function load() {
+      const [templatesRes, seeded, custom] = await Promise.all([
+        supabase
+          .from('templates')
+          .select('*, template_exercises(*, exercise:exercises(*))')
+          .eq('user_id', userId)
+          .order('last_used_at', { ascending: false, nullsFirst: false }),
+        supabase.from('exercises').select('*').is('created_by', null).order('name'),
+        supabase.from('exercises').select('*').eq('created_by', userId).order('name'),
+      ])
+      setTemplates((templatesRes.data ?? []) as Template[])
+      const allExercises = [...(seeded.data ?? []), ...(custom.data ?? [])]
+        .sort((a, b) => a.name.localeCompare(b.name))
+      setExercises(allExercises as Exercise[])
+      setLoading(false)
+    }
+    load()
+  }, [userId])
 
   async function startEmptyWorkout() {
     const { data, error } = await supabase
@@ -83,6 +99,29 @@ export function StartWorkoutClient({ userId, templates: initialTemplates, exerci
     await supabase.from('templates').delete().eq('id', t.id)
     setTemplates((prev) => prev.filter((x) => x.id !== t.id))
     setMenuTemplate(null)
+  }
+
+  if (loading) {
+    return (
+      <div className="px-4 pt-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="h-8 w-40 rounded-xl bg-[var(--surface)] animate-pulse" />
+          <div className="h-8 w-24 rounded-xl bg-[var(--surface)] animate-pulse" />
+        </div>
+        <div className="space-y-3">
+          <div className="h-3 w-20 rounded bg-[var(--surface)] animate-pulse" />
+          <div className="h-12 rounded-xl bg-[var(--surface)] animate-pulse" />
+        </div>
+        <div className="space-y-3">
+          <div className="h-3 w-28 rounded bg-[var(--surface)] animate-pulse" />
+          <div className="grid grid-cols-2 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="rounded-xl bg-[var(--surface)] h-24 animate-pulse" />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   function exercisePreview(template: Template): string {

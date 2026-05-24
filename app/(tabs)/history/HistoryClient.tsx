@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { MoreHorizontal, Trophy, Dumbbell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -9,16 +9,27 @@ import { formatWorkoutDate, formatMonthHeader, formatDuration, elapsedSeconds } 
 import { Sheet } from '@/components/ui/Sheet'
 import { WorkoutDetailSheet } from '@/components/workout/WorkoutDetailSheet'
 
-interface Props {
-  workouts: Workout[]
-}
-
-export function HistoryClient({ workouts: initialWorkouts }: Props) {
-  const [workouts, setWorkouts] = useState(initialWorkouts)
+export function HistoryClient({ userId }: { userId: string }) {
+  const [workouts, setWorkouts] = useState<Workout[]>([])
+  const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<Workout | null>(null)
   const [menu, setMenu] = useState<Workout | null>(null)
   const [editingName, setEditingName] = useState<{ id: string; name: string } | null>(null)
   const supabase = createClient()
+
+  useEffect(() => {
+    async function load() {
+      const { data } = await supabase
+        .from('workouts')
+        .select('*, workout_sets(*, exercise:exercises(*))')
+        .eq('user_id', userId)
+        .not('finished_at', 'is', null)
+        .order('finished_at', { ascending: false })
+      setWorkouts((data ?? []) as Workout[])
+      setLoading(false)
+    }
+    load()
+  }, [userId])
 
   // Group by month
   const grouped = workouts.reduce<Record<string, Workout[]>>((acc, w) => {
@@ -45,6 +56,21 @@ export function HistoryClient({ workouts: initialWorkouts }: Props) {
     )
     setEditingName(null)
     setMenu(null)
+  }
+
+  if (loading) {
+    return (
+      <div className="px-4 pt-6 space-y-4">
+        <div className="h-8 w-28 rounded-xl bg-[var(--surface)] animate-pulse" />
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="rounded-xl bg-[var(--surface)] p-4 space-y-2">
+            <div className="h-4 w-40 rounded bg-[var(--border)] animate-pulse" />
+            <div className="h-3 w-28 rounded bg-[var(--border)] animate-pulse" />
+            <div className="h-3 w-48 rounded bg-[var(--border)] animate-pulse" />
+          </div>
+        ))}
+      </div>
+    )
   }
 
   if (workouts.length === 0) {

@@ -1,46 +1,65 @@
 'use client'
 
-import { useState, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Plus, Search } from 'lucide-react'
 import type { Exercise } from '@/lib/types'
 import { BODY_PARTS, CATEGORIES } from '@/lib/utils/muscles'
-import { Sheet } from '@/components/ui/Sheet'
-import { Input } from '@/components/ui/Input'
+import { createClient } from '@/lib/supabase/client'
 import { ExerciseDetailSheet } from '@/components/exercises/ExerciseDetailSheet'
 import { ExerciseForm } from '@/components/exercises/ExerciseForm'
 import { Badge } from '@/components/ui/Badge'
+import { Input } from '@/components/ui/Input'
 
-interface Props {
-  exercises: Exercise[]
-  sets: Array<{
-    exercise_id: string
-    weight_kg: number | null
-    reps: number | null
-    one_rm: number | null
-    is_pr: boolean
-  }>
-  userId: string
+interface SetStat {
+  exercise_id: string
+  weight_kg: number | null
+  reps: number | null
+  one_rm: number | null
+  is_pr: boolean
 }
 
-export function ExercisesClient({ exercises: initialExercises, sets, userId }: Props) {
-  const [exercises, setExercises] = useState(initialExercises)
+export function ExercisesClient({ userId }: { userId: string }) {
+  const supabase = createClient()
+  const [exercises, setExercises] = useState<Exercise[]>([])
+  const [sets, setSets] = useState<SetStat[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [bodyPartFilter, setBodyPartFilter] = useState<string>('Any Body Part')
-  const [categoryFilter, setCategoryFilter] = useState<string>('Any Category')
+  const [bodyPartFilter, setBodyPartFilter] = useState('All')
+  const [categoryFilter, setCategoryFilter] = useState('All')
   const [detail, setDetail] = useState<Exercise | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
 
+  useEffect(() => {
+    async function load() {
+      // Split into two queries to avoid or() null issues
+      const [seeded, custom, setsRes] = await Promise.all([
+        supabase.from('exercises').select('*').is('created_by', null).order('name'),
+        supabase.from('exercises').select('*').eq('created_by', userId).order('name'),
+        supabase
+          .from('workout_sets')
+          .select('exercise_id, weight_kg, reps, one_rm, is_pr, workouts!inner(finished_at)')
+          .not('workouts.finished_at', 'is', null)
+          .eq('completed', true),
+      ])
+      const all = [...(seeded.data ?? []), ...(custom.data ?? [])]
+        .sort((a, b) => a.name.localeCompare(b.name))
+      setExercises(all)
+      setSets((setsRes.data ?? []) as SetStat[])
+      setLoading(false)
+    }
+    load()
+  }, [userId])
+
   const filtered = useMemo(() => {
     return exercises.filter((e) => {
       if (search && !e.name.toLowerCase().includes(search.toLowerCase())) return false
-      if (bodyPartFilter !== 'Any Body Part' && e.body_part !== bodyPartFilter) return false
-      if (categoryFilter !== 'Any Category' && e.category !== categoryFilter) return false
+      if (bodyPartFilter !== 'All' && e.body_part !== bodyPartFilter) return false
+      if (categoryFilter !== 'All' && e.category !== categoryFilter) return false
       return true
     })
   }, [exercises, search, bodyPartFilter, categoryFilter])
 
-  // Group alphabetically
   const grouped = useMemo(() => {
     const map: Record<string, Exercise[]> = {}
     for (const ex of filtered) {
@@ -57,20 +76,30 @@ export function ExercisesClient({ exercises: initialExercises, sets, userId }: P
     sectionRefs.current[letter]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  function statsForExercise(exId: string) {
-    const exSets = sets.filter((s) => s.exercise_id === exId)
-    const bestSet = exSets.reduce<typeof exSets[0] | undefined>((best, s) => {
-      if (!best) return s
-      const vol = (s.weight_kg ?? 0) * (s.reps ?? 0)
-      return vol > (best.weight_kg ?? 0) * (best.reps ?? 0) ? s : best
-    }, undefined)
-    const bestOneRm = Math.max(0, ...exSets.map((s) => s.one_rm ?? 0))
-    const sessions = new Set(exSets.map((s) => s.exercise_id)).size
-    return { bestSet, bestOneRm, sessions: exSets.length }
+  if (loading) {
+    return (
+      <div className="px-4 pt-6 space-y-4">
+        <div className="h-8 w-32 rounded-xl bg-[var(--surface)] animate-pulse" />
+        <div className="h-11 rounded-2xl bg-[var(--surface)] animate-pulse" />
+        <div className="flex gap-2">
+          <div className="h-8 w-24 rounded-full bg-[var(--surface)] animate-pulse" />
+          <div className="h-8 w-24 rounded-full bg-[var(--surface)] animate-pulse" />
+        </div>
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3 py-2">
+            <div className="w-9 h-9 rounded-full bg-[var(--surface)] animate-pulse shrink-0" />
+            <div className="flex-1 space-y-1.5">
+              <div className="h-3.5 w-40 rounded bg-[var(--surface)] animate-pulse" />
+              <div className="h-3 w-24 rounded bg-[var(--surface)] animate-pulse" />
+            </div>
+          </div>
+        ))}
+      </div>
+    )
   }
 
   return (
-    <div className="relative h-full">
+    <div className="relative">
       <div className="px-4 pt-6 pb-4 space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -94,27 +123,49 @@ export function ExercisesClient({ exercises: initialExercises, sets, userId }: P
           />
         </div>
 
-        {/* Filters */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-          <FilterSelect
-            value={bodyPartFilter}
-            options={['Any Body Part', ...BODY_PARTS]}
-            onChange={setBodyPartFilter}
-          />
-          <FilterSelect
-            value={categoryFilter}
-            options={['Any Category', ...CATEGORIES]}
-            onChange={setCategoryFilter}
-          />
+        {/* Filter pills — Body Part */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-0.5">
+          {['All', ...BODY_PARTS].map((bp) => (
+            <button
+              key={bp}
+              onClick={() => setBodyPartFilter(bp)}
+              className={[
+                'px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 min-h-[32px]',
+                bodyPartFilter === bp
+                  ? 'bg-[var(--accent)] text-white'
+                  : 'bg-[var(--surface)] border border-[var(--border)] text-[var(--text-secondary)]',
+              ].join(' ')}
+            >
+              {bp}
+            </button>
+          ))}
         </div>
 
-        {/* List */}
-        <div className="pr-6"> {/* padding for scrubber */}
-          {grouped.map(([letter, exs]) => (
-            <div
-              key={letter}
-              ref={(el) => { sectionRefs.current[letter] = el }}
+        {/* Filter pills — Category */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-0.5">
+          {['All', ...CATEGORIES].map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setCategoryFilter(cat)}
+              className={[
+                'px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 min-h-[32px]',
+                categoryFilter === cat
+                  ? 'bg-[var(--accent)] text-white'
+                  : 'bg-[var(--surface)] border border-[var(--border)] text-[var(--text-secondary)]',
+              ].join(' ')}
             >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* Exercise list */}
+        <div className="pr-6">
+          {grouped.length === 0 && (
+            <p className="text-[var(--text-secondary)] text-sm py-8 text-center">No exercises found.</p>
+          )}
+          {grouped.map(([letter, exs]) => (
+            <div key={letter} ref={(el) => { sectionRefs.current[letter] = el }}>
               <div className="sticky top-0 bg-[var(--bg)] py-1 z-10">
                 <span className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">
                   {letter}
@@ -136,9 +187,7 @@ export function ExercisesClient({ exercises: initialExercises, sets, userId }: P
                     <p className="text-sm font-medium text-[var(--text-primary)] truncate">{ex.name}</p>
                     <p className="text-xs text-[var(--text-secondary)]">{ex.primary_muscle}</p>
                   </div>
-                  {ex.is_custom && (
-                    <Badge variant="custom" className="shrink-0">Custom</Badge>
-                  )}
+                  {ex.is_custom && <Badge variant="custom" className="shrink-0">Custom</Badge>}
                 </button>
               ))}
             </div>
@@ -147,7 +196,7 @@ export function ExercisesClient({ exercises: initialExercises, sets, userId }: P
       </div>
 
       {/* A–Z Scrubber */}
-      <div className="fixed right-1 top-1/2 -translate-y-1/2 flex flex-col z-20">
+      <div className="fixed right-0 top-1/2 -translate-y-1/2 flex flex-col z-20 py-2">
         {letters.map((l) => (
           <button
             key={l}
@@ -159,19 +208,15 @@ export function ExercisesClient({ exercises: initialExercises, sets, userId }: P
         ))}
       </div>
 
-      {/* Detail sheet */}
       {detail && (
         <ExerciseDetailSheet
           exercise={detail}
           sets={sets.filter((s) => s.exercise_id === detail.id)}
           onClose={() => setDetail(null)}
-          onEdit={detail.is_custom ? () => {
-            setShowCreate(true)
-          } : undefined}
+          onEdit={detail.is_custom ? () => setShowCreate(true) : undefined}
         />
       )}
 
-      {/* Create / Edit form */}
       <ExerciseForm
         open={showCreate}
         onClose={() => setShowCreate(false)}
@@ -186,27 +231,5 @@ export function ExercisesClient({ exercises: initialExercises, sets, userId }: P
         }}
       />
     </div>
-  )
-}
-
-function FilterSelect({
-  value,
-  options,
-  onChange,
-}: {
-  value: string
-  options: string[]
-  onChange: (v: string) => void
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="h-9 rounded-full px-3 text-sm bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] shrink-0 focus:outline-none focus:border-[var(--accent)]"
-    >
-      {options.map((o) => (
-        <option key={o} value={o}>{o}</option>
-      ))}
-    </select>
   )
 }
