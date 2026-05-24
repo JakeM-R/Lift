@@ -32,10 +32,6 @@ export function ExercisesClient({ userId }: { userId: string }) {
 
   useEffect(() => {
     async function load() {
-      // Ensure session cookie is loaded before querying (avoids RLS race on first render)
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { setLoading(false); return }
-
       // Split into two queries to avoid or() null issues
       const [seeded, custom, setsRes] = await Promise.all([
         supabase.from('exercises').select('*').is('created_by', null).order('name'),

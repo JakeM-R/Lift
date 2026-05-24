@@ -85,9 +85,13 @@ export function ProfileClient({ userId, email }: { userId: string; email: string
 
       let prefs = prefsRes.data as UserPreferences | null
       if (!prefs) {
-        // Row missing — create it now so saves work immediately
-        await supabase.rpc('init_user_preferences', { p_user_id: userId })
-        prefs = null
+        // Row missing — create it directly so saves work immediately
+        const { data: newPrefs } = await supabase
+          .from('user_preferences')
+          .upsert({ user_id: userId })
+          .select()
+          .single()
+        prefs = newPrefs as UserPreferences | null
       }
       setPreferences(prefs)
       setWidgets(prefs?.dashboard_widgets ?? [])
