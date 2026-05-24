@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react'
 import { Settings, Plus, X, BarChart2, Weight, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 import type { UserPreferences, BodyMeasurement, Exercise } from '@/lib/types'
+import { saveWidgetsAction, saveDisplayNameAction, logWeightAction } from '@/app/actions/preferences'
 import { WeeklyBarChart } from '@/components/charts/WeeklyBarChart'
 import { MuscleVolumeChart } from '@/components/charts/MuscleVolumeChart'
 import { BodyweightChart } from '@/components/charts/BodyweightChart'
@@ -44,7 +44,6 @@ interface SetStat {
 }
 
 export function ProfileClient({ userId, email }: { userId: string; email: string }) {
-  const supabase = createClient()
   const [preferences, setPreferences] = useState<UserPreferences | null>(null)
   const [workoutCount, setWorkoutCount] = useState(0)
   const [workouts, setWorkouts] = useState<Array<{ finished_at: string | null }>>([])
@@ -63,46 +62,17 @@ export function ProfileClient({ userId, email }: { userId: string; email: string
 
   useEffect(() => {
     async function load() {
-      const [prefsRes, workoutsRes, measurementsRes, setsRes, seeded, custom] = await Promise.all([
-        supabase.from('user_preferences').select('*').eq('user_id', userId).single(),
-        supabase
-          .from('workouts')
-          .select('finished_at')
-          .eq('user_id', userId)
-          .not('finished_at', 'is', null),
-        supabase
-          .from('body_measurements')
-          .select('*')
-          .eq('user_id', userId)
-          .order('logged_at', { ascending: true }),
-        supabase
-          .from('workout_sets')
-          .select('exercise_id, weight_kg, reps, exercise:exercises(primary_muscle, secondary_muscles)')
-          .eq('completed', true),
-        supabase.from('exercises').select('*').is('created_by', null).order('name'),
-        supabase.from('exercises').select('*').eq('created_by', userId).order('name'),
-      ])
-
-      let prefs = prefsRes.data as UserPreferences | null
-      if (!prefs) {
-        // Row missing — create it directly so saves work immediately
-        const { data: newPrefs } = await supabase
-          .from('user_preferences')
-          .upsert({ user_id: userId })
-          .select()
-          .single()
-        prefs = newPrefs as UserPreferences | null
-      }
+      const res = await fetch('/api/profile')
+      if (!res.ok) { setLoading(false); return }
+      const data = await res.json()
+      const prefs = data.preferences as UserPreferences | null
       setPreferences(prefs)
       setWidgets(prefs?.dashboard_widgets ?? [])
-      setWorkoutCount(workoutsRes.data?.length ?? 0)
-      setWorkouts((workoutsRes.data ?? []) as Array<{ finished_at: string | null }>)
-      setMeasurements((measurementsRes.data ?? []) as BodyMeasurement[])
-      setSets((setsRes.data ?? []) as unknown as SetStat[])
-
-      const allExercises = [...(seeded.data ?? []), ...(custom.data ?? [])]
-        .sort((a, b) => a.name.localeCompare(b.name))
-      setExercises(allExercises as Exercise[])
+      setWorkoutCount(data.workoutCount ?? 0)
+      setWorkouts(data.workouts ?? [])
+      setMeasurements(data.measurements ?? [])
+      setSets(data.sets ?? [])
+      setExercises(data.exercises ?? [])
       setLoading(false)
     }
     load()
@@ -124,25 +94,15 @@ export function ProfileClient({ userId, email }: { userId: string; email: string
 
   async function saveWidgets(newWidgets: string[]) {
     setWidgets(newWidgets)
-    await supabase
-      .from('user_preferences')
-      .upsert({ user_id: userId, dashboard_widgets: newWidgets })
+    await saveWidgetsAction(newWidgets)
   }
 
   async function logWeight() {
     if (!weightValue) return
-    const { data } = await supabase
-      .from('body_measurements')
-      .insert({
-        user_id: userId,
-        logged_at: weightDate,
-        weight_kg: parseFloat(weightValue),
-      })
-      .select()
-      .single()
-    if (data) {
+    const result = await logWeightAction(weightDate, parseFloat(weightValue))
+    if (result.success && result.data) {
       setMeasurements((prev) =>
-        [...prev, data as BodyMeasurement].sort((a, b) =>
+        [...prev, result.data as BodyMeasurement].sort((a, b) =>
           a.logged_at.localeCompare(b.logged_at)
         )
       )
@@ -153,9 +113,7 @@ export function ProfileClient({ userId, email }: { userId: string; email: string
 
   async function saveDisplayName() {
     if (!displayNameInput.trim()) return
-    await supabase
-      .from('user_preferences')
-      .upsert({ user_id: userId, display_name: displayNameInput.trim() })
+    await saveDisplayNameAction(displayNameInput.trim())
     setPreferences((prev) =>
       prev
         ? { ...prev, display_name: displayNameInput.trim() }

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import {
   LineChart,
   Line,
@@ -23,22 +22,16 @@ interface DataPoint {
 }
 
 export function ExerciseProgressChart({ exerciseId }: Props) {
-  const supabase = createClient()
   const [data, setData] = useState<DataPoint[]>([])
   const [bestOneRM, setBestOneRM] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
-      const { data: sets } = await supabase
-        .from('workout_sets')
-        .select('one_rm, weight_kg, reps, workouts!inner(finished_at)')
-        .eq('exercise_id', exerciseId)
-        .eq('completed', true)
-        .not('workouts.finished_at', 'is', null)
-        .limit(200)
+      const res = await fetch(`/api/exercise-progress?exerciseId=${exerciseId}`)
+      const sets = res.ok ? await res.json() : []
 
-      if (!sets) {
+      if (!sets?.length) {
         setLoading(false)
         return
       }

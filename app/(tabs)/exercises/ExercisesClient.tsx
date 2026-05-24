@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { Plus, Search } from 'lucide-react'
 import type { Exercise } from '@/lib/types'
 import { BODY_PARTS, CATEGORIES } from '@/lib/utils/muscles'
-import { createClient } from '@/lib/supabase/client'
 import { ExerciseDetailSheet } from '@/components/exercises/ExerciseDetailSheet'
 import { ExerciseForm } from '@/components/exercises/ExerciseForm'
 import { Badge } from '@/components/ui/Badge'
@@ -19,7 +18,6 @@ interface SetStat {
 }
 
 export function ExercisesClient({ userId }: { userId: string }) {
-  const supabase = createClient()
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [sets, setSets] = useState<SetStat[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,20 +30,11 @@ export function ExercisesClient({ userId }: { userId: string }) {
 
   useEffect(() => {
     async function load() {
-      // Split into two queries to avoid or() null issues
-      const [seeded, custom, setsRes] = await Promise.all([
-        supabase.from('exercises').select('*').is('created_by', null).order('name'),
-        supabase.from('exercises').select('*').eq('created_by', userId).order('name'),
-        supabase
-          .from('workout_sets')
-          .select('exercise_id, weight_kg, reps, one_rm, is_pr, workouts!inner(finished_at)')
-          .not('workouts.finished_at', 'is', null)
-          .eq('completed', true),
-      ])
-      const all = [...(seeded.data ?? []), ...(custom.data ?? [])]
-        .sort((a, b) => a.name.localeCompare(b.name))
-      setExercises(all)
-      setSets((setsRes.data ?? []) as SetStat[])
+      const res = await fetch('/api/exercises')
+      if (!res.ok) { setLoading(false); return }
+      const { exercises: exList, sets: setList } = await res.json()
+      setExercises(exList as Exercise[])
+      setSets(setList as SetStat[])
       setLoading(false)
     }
     load()
